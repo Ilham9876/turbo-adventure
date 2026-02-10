@@ -1,32 +1,40 @@
-name: Update RSS Feed
+name: Update RSS Feeds Multi-Source
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Jalan setiap 6 jam
-  workflow_dispatch: # Biar bisa lo jalanin manual buat ngetes
+    # Jalan otomatis setiap 30 menit (biar info bola lo paling update!)
+    - cron: '*/30 * * * *'
+  workflow_dispatch: # Tombol buat jalanin manual kalau lagi gak sabar
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    # Memberi izin robot GitHub untuk menulis file ke repo lo
+    permissions:
+      contents: write
+
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 feedgen
 
-      - name: Run generator
+      - name: Run RSS Generator
         run: python main.py
 
-      - name: Commit and Push
+      - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add feed.xml
-          git commit -m "Update feed: $(date)"
-          git push
+          git add *.xml
+          # Cek dulu ada perubahan nggak, biar gak error kalau gak ada berita baru
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update RSS Feeds: $(date)" && git push)
