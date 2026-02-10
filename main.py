@@ -4,11 +4,9 @@ from feedgen.feed import FeedGenerator
 import time
 import uuid
 
-# Headers biar gak diblokir sama website berita
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Language': 'id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7',
 }
 
 def create_feed(title, link, description, filename, articles):
@@ -21,79 +19,86 @@ def create_feed(title, link, description, filename, articles):
     fg.lastBuildDate(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime()))
 
     if not articles:
-        print(f"⚠️ Waduh, artikel {filename} kosong bro!")
+        print(f"⚠️ {filename} masih kosong, cek selector!")
         return
 
-    for art in articles[:30]: # Limit 30 berita biar gak kepenuhan
+    for art in articles[:30]:
         fe = fg.add_entry()
-        fe.id(art.get('link', str(uuid.uuid4())))
+        fe.id(art['link'])
         fe.title(art['title'])
         fe.link(href=art['link'])
         fe.description(art['desc'])
+        # Tambahan biar muncul gambar di RSS Reader
+        if art.get('img'):
+            fe.enclosure(art['img'], 0, 'image/jpeg')
         fe.pubDate(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime()))
     
     fg.rss_file(filename)
-    print(f"✅ Mantap! {filename} beres dengan {len(articles)} berita.")
+    print(f"✅ {filename} Berhasil Update!")
+
+def scrape_bola_com():
+    url = "https://www.bola.com/"
+    try:
+        res = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        data = []
+        
+        # Pake CSS Selector hasil riset lo yang mantap itu
+        # Kita gabungkan semua selector pake koma
+        selectors = '.article-video-section__list-text-title, .article-snippet__title-text, .article-snippet_headline .article-snippet__title-link'
+        items = soup.select(selectors)
+        
+        for item in items:
+            # Kadang selector lo nangkep elemen <a> langsung, kadang <span> di dalem <a>
+            parent_a = item if item.name == 'a' else item.find_parent('a')
+            
+            if parent_a and parent_a.get('href'):
+                title = item.get_text(strip=True)
+                link = parent_a['href']
+                
+                # Coba cari gambar di sekitar elemen judul
+                img_tag = parent_a.find_parent().find('img') if parent_a.find_parent() else None
+                img_url = img_tag.get('data-src') or img_tag.get('src') if img_tag else None
+
+                data.append({
+                    'title': title,
+                    'link': link,
+                    'desc': f"Berita terbaru dari Bola.com: {title}",
+                    'img': img_url
+                })
+        return data
+    except Exception as e:
+        print(f"Error Bola: {e}")
+        return []
 
 def scrape_detik():
     url = "https://sport.detik.com/sepakbola/indeks"
     try:
-        res = requests.get(url, headers=headers, timeout=15)
+        res = requests.get(url, headers=headers)
         soup = BeautifulSoup(res.text, 'html.parser')
         data = []
         for item in soup.select('article'):
             t = item.select_one('.media__title a')
-            d = item.select_one('.media__desc')
             if t:
-                data.append({
-                    'title': t.get_text(strip=True), 
-                    'link': t['href'], 
-                    'desc': d.get_text(strip=True) if d else "Berita Sepakbola DetikSport"
-                })
-        return data
-    except: return []
-
-def scrape_bola_com():
-    url = "https://www.bola.com/indonesia"
-    try:
-        res = requests.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(res.text, 'html.parser')
-        data = []
-        # Menggunakan class 'irreguler' sesuai struktur web aslinya
-        articles = soup.find_all('article', class_='articles--irreguler-list--item')
-        for item in articles:
-            t_node = item.find('a', class_='articles--irreguler-list--title-link')
-            d_node = item.find('div', class_='articles--irreguler-list--summary')
-            if t_node:
-                data.append({
-                    'title': t_node.get('title') or t_node.get_text(strip=True),
-                    'link': t_node.get('href'),
-                    'desc': d_node.get_text(strip=True) if d_node else "Update terbaru dari Bola.com"
-                })
+                data.append({'title': t.get_text(strip=True), 'link': t['href'], 'desc': "Update DetikSport"})
         return data
     except: return []
 
 def scrape_goal():
     url = "https://www.goal.com/id/berita/1"
     try:
-        res = requests.get(url, headers=headers, timeout=15)
+        res = requests.get(url, headers=headers)
         soup = BeautifulSoup(res.text, 'html.parser')
         data = []
         for item in soup.select('li[data-testid="article-card"]'):
-            t = item.select_one('h3')
-            l = item.select_one('a')
+            t, l = item.select_one('h3'), item.select_one('a')
             if t and l:
-                full_link = l['href'] if l['href'].startswith('http') else "https://www.goal.com" + l['href']
-                data.append({
-                    'title': t.get_text(strip=True), 
-                    'link': full_link, 
-                    'desc': "Update Goal.com Indonesia"
-                })
+                link = l['href'] if l['href'].startswith('http') else "https://www.goal.com" + l['href']
+                data.append({'title': t.get_text(strip=True), 'link': link, 'desc': "Goal.com Indonesia"})
         return data
     except: return []
 
 if __name__ == '__main__':
-    # Eksekusi semua sumber
-    create_feed("Detik Sport Sepakbola", "https://sport.detik.com/sepakbola", "Info Bola Detik", "feed_detik.xml", scrape_detik())
-    create_feed("Bola.com", "https://www.bola.com", "Portal Berita Bola.com", "feed_bola.xml", scrape_bola_com())
-    create_feed("Goal.com Indonesia", "https://www.goal.com/id", "Berita Dunia Goal.com", "feed_goal.xml", scrape_goal())
+    create_feed("Bola.com", "https://www.bola.com", "News Bola.com", "feed_bola.xml", scrape_bola_com())
+    create_feed("Detik Sport", "https://sport.detik.com/sepakbola", "News Detik", "feed_detik.xml", scrape_detik())
+    create_feed("Goal.com", "https://www.goal.com/id", "News Goal.com", "feed_goal.xml", scrape_goal())
