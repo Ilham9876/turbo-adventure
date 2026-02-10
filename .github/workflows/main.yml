@@ -2,8 +2,12 @@ name: Update My RSS Feed
 
 on:
   schedule:
-    - cron: '0 * * * *' # Jalan otomatis setiap jam (menit ke-0)
-  workflow_dispatch:   # Tombol biar bisa lo jalanin manual
+    - cron: '0 * * * *' # Jalan otomatis setiap jam
+  workflow_dispatch:   # Tombol ajaib biar bisa lo klik manual
+
+# Bagian ini WAJIB ada biar robotnya punya kunci buat nulis ke repo lo
+permissions:
+  contents: write
 
 jobs:
   build:
