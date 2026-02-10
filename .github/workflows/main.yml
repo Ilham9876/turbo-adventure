@@ -1,0 +1,32 @@
+name: Update My RSS Feed
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Jalan otomatis setiap jam (menit ke-0)
+  workflow_dispatch:   # Tombol biar bisa lo jalanin manual
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install library
+        run: pip install requests
+
+      - name: Jalanin Script Python
+        run: python update_rss.py
+
+      - name: Simpan Perubahan ke GitHub
+        run: |
+          git config --global user.name 'GitHub Action'
+          git config --global user.email 'action@github.com'
+          git add "RSS Feed/detiksains.xml"
+          git commit -m "Auto update: Berita Terbaru" || echo "Gak ada perubahan berita"
+          git push
