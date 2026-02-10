@@ -1,13 +1,9 @@
-name: Update My RSS Feed
+name: Update RSS Feed
 
 on:
   schedule:
-    - cron: '0 * * * *' # Jalan otomatis setiap jam
-  workflow_dispatch:   # Tombol ajaib biar bisa lo klik manual
-
-# Bagian ini WAJIB ada biar robotnya punya kunci buat nulis ke repo lo
-permissions:
-  contents: write
+    - cron: '0 */6 * * *' # Jalan setiap 6 jam
+  workflow_dispatch: # Biar bisa lo jalanin manual buat ngetes
 
 jobs:
   build:
@@ -16,21 +12,21 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
 
-      - name: Install library
-        run: pip install requests
+      - name: Install dependencies
+        run: pip install -r requirements.txt
 
-      - name: Jalanin Script Python
-        run: python update_rss.py
+      - name: Run generator
+        run: python main.py
 
-      - name: Simpan Perubahan ke GitHub
+      - name: Commit and Push
         run: |
-          git config --global user.name 'GitHub Action'
-          git config --global user.email 'action@github.com'
-          git add "RSS Feed/detiksains.xml"
-          git commit -m "Auto update: Berita Terbaru" || echo "Gak ada perubahan berita"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add feed.xml
+          git commit -m "Update feed: $(date)"
           git push
