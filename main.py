@@ -3,65 +3,78 @@ from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
 import time
 
-def scrape_kompas_bola():
-    # Pake URL terpopuler biasanya lebih stabil strukturnya
-    url = "https://bola.kompas.com/search" 
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36'
-    }
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        articles = []
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
 
-        # Mencari semua link yang ada di dalam h3 dengan class common
-        # Ini struktur yang lebih umum di Kompas
-        for item in soup.select('.article__list'):
-            title_node = item.select_one('.article__title a')
-            desc_node = item.select_one('.article__excerpt')
-            
-            if title_node:
-                title = title_node.get_text(strip=True)
-                link = title_node['href']
-                desc = desc_node.get_text(strip=True) if desc_node else "Berita terbaru dari Kompas Bola."
-                
-                articles.append({
-                    'title': title,
-                    'link': link,
-                    'desc': desc
-                })
-        
-        print(f"Berhasil dapet {len(articles)} berita!")
-        return articles
-    except Exception as e:
-        print(f"Waduh, error pas scraping: {e}")
-        return []
-
-def generate_rss():
-    articles = scrape_kompas_bola()
-    
-    if not articles:
-        print("Yah, list beritanya kosong. Coba cek strukturnya lagi.")
-        return
-
+def create_feed(title, link, description, filename, articles):
     fg = FeedGenerator()
-    fg.id('https://github.com/lo/repo-rss')
-    fg.title('Kompas Bola - Live Update')
-    fg.author({'name': 'Gen Z Innovator'})
-    fg.link(href='https://bola.kompas.com/', rel='alternate')
-    fg.description('Update otomatis berita bola biar gak ketinggalan jaman.')
+    fg.id(link)
+    fg.title(title)
+    fg.link(href=link, rel='alternate')
+    fg.description(description)
     fg.language('id')
 
-    for berita in articles:
+    for art in articles[:30]: # Limit 30 postingan per feed
         fe = fg.add_entry()
-        fe.id(berita['link'])
-        fe.title(berita['title'])
-        fe.link(href=berita['link'])
-        fe.description(berita['desc'])
+        fe.id(art['link'])
+        fe.title(art['title'])
+        fe.link(href=art['link'])
+        fe.description(art['desc'])
         fe.pubDate(time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.gmtime()))
+    
+    fg.rss_file(filename)
+    print(f"✅ Berhasil update {filename}")
 
-    fg.rss_file('feed.xml')
+def scrape_detik():
+    url = "https://sport.detik.com/sepakbola/indeks"
+    res = requests.get(url, headers=headers)
+    soup = BeautifulSoup(res.text, 'html.parser')
+    data = []
+    for item in soup.select('article'):
+        title_node = item.select_one('.media__title a')
+        desc_node = item.select_one('.media__desc')
+        if title_node:
+            data.append({
+                'title': title_node.get_text(strip=True),
+                'link': title_node['href'],
+                'desc': desc_node.get_text(strip=True) if desc_node else "Berita DetikSport"
+            })
+    return data
+
+def scrape_bola_com():
+    url = "https://www.bola.com/indonesia"
+    res = requests.get(url, headers=headers)
+    soup = BeautifulSoup(res.text, 'html.parser')
+    data = []
+    for item in soup.select('.articles--irregular-list--item'):
+        title_node = item.select_one('.articles--irregular-list--title-link')
+        if title_node:
+            data.append({
+                'title': title_node['title'],
+                'link': title_node['href'],
+                'desc': "Update berita terbaru dari Bola.com"
+            })
+    return data
+
+def scrape_goal():
+    url = "https://www.goal.com/id/berita/1"
+    res = requests.get(url, headers=headers)
+    soup = BeautifulSoup(res.text, 'html.parser')
+    data = []
+    for item in soup.select('li[data-testid="article-card"]'):
+        title_node = item.select_one('h3')
+        link_node = item.select_one('a')
+        if title_node and link_node:
+            data.append({
+                'title': title_node.get_text(strip=True),
+                'link': "https://www.goal.com" + link_node['href'],
+                'desc': "Berita terbaru dari Goal.com"
+            })
+    return data
 
 if __name__ == '__main__':
-    generate_rss()
+    # 1. Detik
+    create_feed("Detik Sport Sepakbola", "https://sport.detik.com/sepakbola", "Info Bola Detik", "feed_detik.xml", scrape_detik())
+    # 2. Bola.com
+    create_feed("Bola.com", "https://www.bola.com", "Info Bola.com", "feed_bola.xml", scrape_bola_com())
+    # 3. Goal.com
+    create_feed("Goal.com Indonesia", "https://www.goal.com/id", "Info Goal.com", "feed_goal.xml", scrape_goal())
